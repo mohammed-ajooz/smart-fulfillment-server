@@ -1,0 +1,18 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16
+    container_name: logitrack-db
+    restart: always
+    environment:
+      POSTGRES_USER: smart
+      POSTGRES_PASSWORD: smartpass
+      POSTGRES_DB: logitrack
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

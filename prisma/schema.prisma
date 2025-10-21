@@ -1,0 +1,353 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//////////////////////////////////////////////////////
+// ENUMS
+//////////////////////////////////////////////////////
+
+enum UserRole {
+  ADMIN
+  VENDOR
+  CUSTOMER
+  STAFF
+  DRIVER
+  FINANCE
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum SalesOrderStatus {
+  PENDING_CONFIRMATION
+  PENDING_COLLECT
+  READY_FOR_DISPATCH
+  ASSIGNED_FOR_DRIVER
+  DISPATCHED
+  DELIVERED
+  UNDELIVERED
+  PENDING_RETURN
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  WALLET
+}
+
+enum TransactionType {
+  ORDER_PAYMENT
+  REFUND
+  VENDOR_PAYOUT
+  CASHBOX_DEPOSIT
+  CASHBOX_WITHDRAW
+}
+
+enum LocationType {
+  ZONE
+  AISLE
+  SHELF
+  RANK
+  BIN
+}
+
+enum MovementType {
+  INBOUND
+  OUTBOUND
+  TRANSFER
+  ADJUST
+}
+
+//////////////////////////////////////////////////////
+// CORE MODELS
+//////////////////////////////////////////////////////
+
+model User {
+  id           String      @id @default(cuid())
+  name         String
+  email        String      @unique
+  passwordHash String
+  role         UserRole
+  status       UserStatus  @default(ACTIVE)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  vendor       Vendor?
+  customer     Customer?
+  staffProfile StaffProfile?
+
+  transactions FinanceTransaction[]
+  wallet       Wallet?
+}
+
+model Vendor {
+  id             String           @id @default(cuid())
+  userId         String           @unique
+  companyName    String
+  phone          String?
+  address        String?
+  status         String           @default("ACTIVE")
+  createdAt      DateTime         @default(now())
+
+  user           User             @relation(fields: [userId], references: [id])
+  products       Product[]
+  purchaseOrders PurchaseOrder[]
+  payouts        VendorPayout[]
+  inboundReceipts InboundReceipt[]
+}
+
+model Customer {
+  id          String        @id @default(cuid())
+  userId      String        @unique
+  phone       String?
+  city        String?
+  address     String?
+  createdAt   DateTime      @default(now())
+
+  user        User          @relation(fields: [userId], references: [id])
+  orders      SalesOrder[]
+}
+
+model StaffProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  department   String
+  position     String
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id])
+}
+
+//////////////////////////////////////////////////////
+// PRODUCT & CATALOG
+//////////////////////////////////////////////////////
+
+model Product {
+  id           String          @id @default(cuid())
+  vendorId     String
+  name         String
+  sku          String          @unique
+  price        Decimal
+  cost         Decimal
+  stock        Int             @default(0)
+  active       Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+
+  vendor        Vendor          @relation(fields: [vendorId], references: [id])
+  orderItems    SalesOrderItem[]
+  poItems       PurchaseOrderItem[]
+  stockRecords  Stock[]
+  movements     Movement[]
+  inboundLines  InboundLine[]
+}
+
+//////////////////////////////////////////////////////
+// ORDERS SYSTEM
+//////////////////////////////////////////////////////
+
+model SalesOrder {
+  id             String             @id @default(cuid())
+  orderCode      String             @unique
+  customerId     String
+  total          Decimal
+  status         SalesOrderStatus   @default(PENDING_CONFIRMATION)
+  createdAt      DateTime           @default(now())
+
+  customer       Customer           @relation(fields: [customerId], references: [id])
+  items          SalesOrderItem[]
+  purchaseOrders PurchaseOrder[]
+  transactions   FinanceTransaction[]
+}
+
+model SalesOrderItem {
+  id          String     @id @default(cuid())
+  orderId     String
+  productId   String
+  qty         Int
+  price       Decimal
+  subtotal    Decimal
+
+  order       SalesOrder @relation(fields: [orderId], references: [id])
+  product     Product    @relation(fields: [productId], references: [id])
+}
+
+model PurchaseOrder {
+  id          String     @id @default(cuid())
+  soId        String
+  vendorId    String
+  total       Decimal
+  status      String
+  createdAt   DateTime   @default(now())
+
+  salesOrder  SalesOrder @relation(fields: [soId], references: [id])
+  vendor      Vendor     @relation(fields: [vendorId], references: [id])
+  items       PurchaseOrderItem[]
+}
+
+model PurchaseOrderItem {
+  id          String     @id @default(cuid())
+  poId        String
+  productId   String
+  qty         Int
+  price       Decimal
+  subtotal    Decimal
+
+  purchaseOrder PurchaseOrder @relation(fields: [poId], references: [id])
+  product       Product       @relation(fields: [productId], references: [id])
+}
+
+//////////////////////////////////////////////////////
+// FINANCE SYSTEM
+//////////////////////////////////////////////////////
+
+model FinanceTransaction {
+  id              String           @id @default(cuid())
+  salesOrderId    String?
+  userId          String?
+  amount          Decimal
+  method          PaymentMethod
+  type            TransactionType
+  reference       String?
+  createdAt       DateTime         @default(now())
+
+  salesOrder      SalesOrder?      @relation(fields: [salesOrderId], references: [id])
+  user            User?            @relation(fields: [userId], references: [id])
+}
+
+model Cashbox {
+  id          String   @id @default(cuid())
+  name        String
+  balance     Decimal  @default(0)
+  createdAt   DateTime @default(now())
+  movements   CashboxMovement[]
+}
+
+model CashboxMovement {
+  id          String   @id @default(cuid())
+  cashboxId   String
+  amount      Decimal
+  direction   String // IN / OUT
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  cashbox     Cashbox  @relation(fields: [cashboxId], references: [id])
+}
+
+model Wallet {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  balance     Decimal  @default(0)
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model VendorPayout {
+  id          String   @id @default(cuid())
+  vendorId    String
+  amount      Decimal
+  reference   String?
+  createdAt   DateTime @default(now())
+
+  vendor      Vendor   @relation(fields: [vendorId], references: [id])
+}
+
+//////////////////////////////////////////////////////
+// WAREHOUSE SYSTEM
+//////////////////////////////////////////////////////
+
+model Warehouse {
+  id        String     @id @default(cuid())
+  name      String
+  code      String     @unique
+  city      String
+  address   String?
+  createdAt DateTime   @default(now())
+
+  locations Location[]
+  stock     Stock[]
+  receipts  InboundReceipt[]
+}
+
+model Location {
+  id           String       @id @default(cuid())
+  warehouseId  String
+  parentId     String?
+  type         LocationType
+  code         String
+  createdAt    DateTime     @default(now())
+
+  warehouse    Warehouse    @relation(fields: [warehouseId], references: [id])
+  parent       Location?    @relation("LocationHierarchy", fields: [parentId], references: [id])
+  children     Location[]   @relation("LocationHierarchy")
+  stock        Stock[]
+
+  fromMovements Movement[] @relation("MovementFrom")
+  toMovements   Movement[] @relation("MovementTo")
+}
+
+model Stock {
+  id           String     @id @default(cuid())
+  productId    String
+  warehouseId  String
+  locationId   String?
+  qtyOnHand    Int        @default(0)
+  qtyReserved  Int        @default(0)
+
+  product      Product    @relation(fields: [productId], references: [id])
+  warehouse    Warehouse  @relation(fields: [warehouseId], references: [id])
+  location     Location?  @relation(fields: [locationId], references: [id])
+
+  @@unique([productId, warehouseId, locationId])
+}
+
+model Movement {
+  id              String        @id @default(cuid())
+  productId       String
+  fromLocationId  String?
+  toLocationId    String?
+  qty             Int
+  type            MovementType
+  refType         String?
+  refId           String?
+  createdBy       String?
+  createdAt       DateTime      @default(now())
+
+  product         Product       @relation(fields: [productId], references: [id])
+  fromLocation    Location?     @relation("MovementFrom", fields: [fromLocationId], references: [id])
+  toLocation      Location?     @relation("MovementTo", fields: [toLocationId], references: [id])
+}
+
+model InboundReceipt {
+  id           String         @id @default(cuid())
+  vendorId     String
+  warehouseId  String
+  status       String
+  sourcePO     String?
+  createdAt    DateTime       @default(now())
+
+  vendor       Vendor         @relation(fields: [vendorId], references: [id])
+  warehouse    Warehouse      @relation(fields: [warehouseId], references: [id])
+  lines        InboundLine[]
+}
+
+model InboundLine {
+  id          String          @id @default(cuid())
+  receiptId   String
+  productId   String
+  expectedQty Int
+  receivedQty Int
+  info        String?
+
+  receipt     InboundReceipt  @relation(fields: [receiptId], references: [id])
+  product     Product         @relation(fields: [productId], references: [id])
+}
