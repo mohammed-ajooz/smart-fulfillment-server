@@ -28,6 +28,7 @@ enum UserStatus {
 
 enum SalesOrderStatus {
   PENDING_CONFIRMATION
+  REJECTED
   PENDING_COLLECT
   READY_FOR_DISPATCH
   ASSIGNED_FOR_DRIVER
@@ -131,9 +132,21 @@ model StaffProfile {
 // PRODUCT & CATALOG
 //////////////////////////////////////////////////////
 
+model Category {
+    id        String     @id @default(cuid())
+  name      String
+  parentId  String?    // فئة رئيسية أو فرعية
+  createdAt DateTime   @default(now())
+
+  parent    Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryHierarchy")
+  products  Product[]
+}
+
 model Product {
   id           String          @id @default(cuid())
   vendorId     String
+  categoryId   String?
   name         String
   sku          String          @unique
   price        Decimal
@@ -143,12 +156,15 @@ model Product {
   createdAt    DateTime        @default(now())
 
   vendor        Vendor          @relation(fields: [vendorId], references: [id])
+ 
+  category      Category?       @relation(fields: [categoryId], references: [id])
   orderItems    SalesOrderItem[]
   poItems       PurchaseOrderItem[]
   stockRecords  Stock[]
   movements     Movement[]
   inboundLines  InboundLine[]
 }
+
 
 //////////////////////////////////////////////////////
 // ORDERS SYSTEM
