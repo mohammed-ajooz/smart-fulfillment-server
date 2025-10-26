@@ -11,7 +11,9 @@ import { FinanceModule } from './finance/finance.module';
 import { AuthModule } from './auth/auth.module';
 import { PrismaService } from './prisma/prisma.service';
 import { CategoriesModule } from './categories/categories.module';
-
+import { DispatcherModule } from './dispatcher/dispatcher.module';
+import { DriversModule } from './drivers/drivers.module';
+import { DeliveryAssignmentsModule } from './delivery-assignments/delivery-assignments.module';
 
 
 @Module({
@@ -27,6 +29,9 @@ import { CategoriesModule } from './categories/categories.module';
     AuthModule,
     CategoriesModule,
     OrdersModule,
+    DispatcherModule,
+    DriversModule,
+    DeliveryAssignmentsModule,
     
   ],
 })

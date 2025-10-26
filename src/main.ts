@@ -8,6 +8,11 @@ async function bootstrap() {
 
   // DTO Validation
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+app.enableCors({
+  origin: '*', // يسمح لجميع المصادر بالاتصال
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+});
 
   // Swagger
   const config = new DocumentBuilder()
@@ -23,4 +28,5 @@ async function bootstrap() {
   console.log(`Server running on http://localhost:${port}`);
   console.log(`Swagger docs   on http://localhost:${port}/docs`);
 }
+
 bootstrap();

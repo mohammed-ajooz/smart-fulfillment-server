@@ -22,39 +22,51 @@ export class ProductsService {
     });
   }
 
-  // 🟢 إضافة منتج جديد (للتاجر فقط)
-  async create(data: any, user: any) {
-    if (user.role !== 'VENDOR' && user.role !== 'ADMIN') {
-      throw new ForbiddenException('Only vendors or admin can add products');
-    }
-
-    // 🔍 الحصول على vendorId من قاعدة البيانات
-    let vendorId: string;
-
-    if (user.role === 'ADMIN') {
-      // في حال الأدمن، نأخذ vendorId من الـ body مباشرة
-      if (!data.vendorId) throw new ForbiddenException('vendorId is required for admin');
-      vendorId = data.vendorId;
-    } else {
-      // في حال التاجر، نجلبه من جدول Vendor
-      const vendor = await this.prisma.vendor.findUnique({
-        where: { userId: user.id },
-      });
-      if (!vendor) throw new ForbiddenException('Vendor profile not found');
-      vendorId = vendor.id;
-    }
-
-    // 🟢 الآن ننشئ المنتج
-    return this.prisma.product.create({
-      data: {
-        name: data.name,
-        sku: data.sku,
-        price: data.price,
-        cost: data.cost,
-        vendorId: vendorId,
-      },
-    });
+  // 🟢 إنشاء منتج جديد (يدعم التاجر أو الأدمن)
+async create(data: any, user: any) {
+  if (user.role !== 'VENDOR' && user.role !== 'ADMIN') {
+    throw new ForbiddenException('Only vendors or admin can add products');
   }
+
+  // 🔍 تحديد vendorId
+  let vendorId: string;
+  if (user.role === 'ADMIN') {
+    if (!data.vendorId) throw new ForbiddenException('vendorId is required for admin');
+    vendorId = data.vendorId;
+  } else {
+    const vendor = await this.prisma.vendor.findUnique({
+      where: { userId: user.id },
+    });
+    if (!vendor) throw new ForbiddenException('Vendor profile not found');
+    vendorId = vendor.id;
+  }
+
+  // ✅ التحقق من الحقول المطلوبة
+  if (!data.name || !data.sku || !data.price || !data.cost) {
+    throw new ForbiddenException('Missing required fields (name, sku, price, cost)');
+  }
+
+  // 🧾 إنشاء المنتج
+  const product = await this.prisma.product.create({
+    data: {
+      name: data.name,
+      sku: data.sku,
+      price: data.price,
+      cost: data.cost,
+      stock: data.stock ?? 0,
+      active: data.active ?? true,
+      categoryId: data.categoryId ?? null,
+      vendorId: vendorId,
+    },
+    include: { category: { select: { name: true } }, vendor: { select: { companyName: true } } },
+  });
+
+  return {
+    message: '✅ Product created successfully',
+    product,
+  };
+}
+
 
 
   // 🟢 تعديل منتج (فقط مالكه أو ADMIN)

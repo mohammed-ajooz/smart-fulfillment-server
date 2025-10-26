@@ -37,6 +37,19 @@ enum SalesOrderStatus {
   UNDELIVERED
   PENDING_RETURN
 }
+enum PurchaseOrderStatus {
+  PENDING_VENDOR_CONFIRM      // بانتظار تأكيد التاجر
+  CONFIRMED_BY_VENDOR         // تم التأكيد من التاجر
+  READY_FOR_PICKUP            // جاهز للاستلام
+  IN_TRANSIT_TO_WAREHOUSE     // في الطريق إلى المستودع
+  RECEIVED_AT_WAREHOUSE       // تم استلامه بالمستودع
+  STORED_IN_BIN               // تم تخزينه
+  COMPLETED                   // مكتمل
+  REJECTED                    // مرفوض
+  ON_THE_WAY_TO_VENDOR
+  PICKED_UP
+}
+
 
 enum PaymentMethod {
   CASH
@@ -84,7 +97,9 @@ model User {
   vendor       Vendor?
   customer     Customer?
   staffProfile StaffProfile?
-
+  dispatcher   Dispatcher?
+  driver       Driver?
+  
   transactions FinanceTransaction[]
   wallet       Wallet?
 }
@@ -177,7 +192,7 @@ model SalesOrder {
   total          Decimal
   status         SalesOrderStatus   @default(PENDING_CONFIRMATION)
   createdAt      DateTime           @default(now())
-
+  rejectionReason String?
   customer       Customer           @relation(fields: [customerId], references: [id])
   items          SalesOrderItem[]
   purchaseOrders PurchaseOrder[]
@@ -196,17 +211,64 @@ model SalesOrderItem {
   product     Product    @relation(fields: [productId], references: [id])
 }
 
+
+model Dispatcher {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  name      String
+  phone     String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+  assignments DeliveryAssignment[]
+}
+
+model Driver {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  name        String
+  phone       String?
+  vehicleType String?
+  plateNumber String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+  assignments DeliveryAssignment[]
+}
+
+model DeliveryAssignment {
+  id            String          @id @default(cuid())
+  driverId      String
+  dispatcherId  String
+  poId          String
+  status        String          @default("ASSIGNED")
+  assignedAt    DateTime        @default(now())
+  startedAt     DateTime?
+  pickedUpAt    DateTime?
+  completedAt   DateTime?
+  notes         String?
+
+  driver        Driver          @relation(fields: [driverId], references: [id])
+  dispatcher    Dispatcher      @relation(fields: [dispatcherId], references: [id])
+  purchaseOrder PurchaseOrder   @relation(fields: [poId], references: [id])
+}
+
+
 model PurchaseOrder {
   id          String     @id @default(cuid())
   soId        String
   vendorId    String
   total       Decimal
-  status      String
+  status          PurchaseOrderStatus   @default(PENDING_VENDOR_CONFIRM)
   createdAt   DateTime   @default(now())
+  rejectionReason String?   // ✅ سبب رفض التاجر (اختياري)
 
+  
   salesOrder  SalesOrder @relation(fields: [soId], references: [id])
   vendor      Vendor     @relation(fields: [vendorId], references: [id])
   items       PurchaseOrderItem[]
+  deliveryAssignments  DeliveryAssignment[]
 }
 
 model PurchaseOrderItem {
